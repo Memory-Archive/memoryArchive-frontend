@@ -123,7 +123,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             duration: const Duration(milliseconds: 220),
                             layoutBuilder: (current, previous) => Stack(
                               alignment: Alignment.topLeft,
-                              children: [...previous, if (current != null) current],
+                              children: [...previous, ?current],
                             ),
                             child: OnboardingPage(
                               key: ValueKey(_page),

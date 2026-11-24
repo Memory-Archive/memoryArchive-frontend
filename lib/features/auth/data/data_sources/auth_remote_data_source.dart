@@ -67,7 +67,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       data: {
         'email': email,
         'password': password,
-        if (deviceName != null) 'deviceName': deviceName,
+        'deviceName': ?deviceName,
       },
     );
     return LoginResponseDto.fromJson(asJsonMap(unwrapData(response.data), 'login'));

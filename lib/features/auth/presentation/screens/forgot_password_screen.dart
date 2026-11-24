@@ -76,7 +76,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         icon: Icons.schedule_outlined,
                         title: 'Not available yet',
                         message:
-                            "Password reset is coming in the next version. If you remember your password, go back and log in.",
+                            'Password reset is coming in the next version. If you remember your password, go back and log in.',
                         onBack: _back,
                       ),
                     _ => _buildForm(context, state),
