@@ -1,117 +1,118 @@
 import 'package:flutter/material.dart';
-import 'package:smart_memories/core/themes/app_colors.dart';
-import 'package:smart_memories/core/themes/app_spacing.dart';
-import 'package:smart_memories/core/themes/app_text_styles.dart';
-import 'package:smart_memories/core/widgets/app_button.dart';
 
-/// Centred spinner for a loading state.
+import '../themes/app_colors.dart';
+import '../themes/app_spacing.dart';
+import '../themes/app_text_styles.dart';
+import 'app_button.dart';
+
 class AppLoader extends StatelessWidget {
   const AppLoader({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
-  }
+  Widget build(BuildContext context) => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(color: AppColors.green),
+        ),
+      );
 }
 
-/// Shown when a list has nothing in it yet.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
-    required this.title,
-    this.message,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  final String title;
-  final String? message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return _StateLayout(
-      icon: Icons.photo_album_outlined,
-      iconColor: AppColors.muted,
-      title: title,
-      message: message,
-      actionLabel: actionLabel,
-      onAction: onAction,
-    );
-  }
-}
-
-/// Shown when loading failed. [message] comes from ApiError.message.
-class ErrorState extends StatelessWidget {
-  const ErrorState({super.key, required this.message, this.onRetry});
-
-  final String message;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return _StateLayout(
-      icon: Icons.error_outline,
-      iconColor: AppColors.danger,
-      title: 'That did not work',
-      message: message,
-      actionLabel: onRetry == null ? null : 'Try again',
-      onAction: onRetry,
-    );
-  }
-}
-
-class _StateLayout extends StatelessWidget {
-  const _StateLayout({
     required this.icon,
-    required this.iconColor,
     required this.title,
-    this.message,
+    required this.message,
     this.actionLabel,
     this.onAction,
   });
 
   final IconData icon;
-  final Color iconColor;
   final String title;
-  final String? message;
+  final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.x28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: AppSizes.touchTarget, color: iconColor),
-            AppGap.v16,
-            Text(
-              title,
-              style: AppTextStyles.titleSm,
-              textAlign: TextAlign.center,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.xxl),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(color: AppColors.mint, shape: BoxShape.circle),
+            child: Icon(icon, color: AppColors.greenDark),
+          ),
+          AppGap.h12,
+          Text(title, textAlign: TextAlign.center, style: AppTextStyles.display(size: 20)),
+          AppGap.h6,
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body(size: 14, color: AppColors.muted, height: 1.4),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            AppGap.h16,
+            AppButton(label: actionLabel!, onPressed: onAction, expand: false),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class ErrorState extends StatelessWidget {
+  const ErrorState({super.key, required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => EmptyState(
+        icon: Icons.cloud_off_outlined,
+        title: "Couldn't load this",
+        message: message,
+        actionLabel: 'Try again',
+        onAction: onRetry,
+      );
+}
+
+/// Red-tinted message above a form's main button
+/// ("Email or password is incorrect.").
+class FormErrorBanner extends StatelessWidget {
+  const FormErrorBanner({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.errorBackground,
+          borderRadius: BorderRadius.circular(AppRadii.field),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+            AppGap.w10,
+            Expanded(
+              child: Text(
+                message,
+                style: AppTextStyles.body(size: 14, weight: FontWeight.w500, color: AppColors.error),
+              ),
             ),
-            if (message != null) ...<Widget>[
-              AppGap.v8,
-              Text(
-                message!,
-                style: AppTextStyles.bodyMuted,
-                textAlign: TextAlign.center,
-              ),
-            ],
-            if (actionLabel != null && onAction != null) ...<Widget>[
-              AppGap.v22,
-              AppButton(
-                label: actionLabel!,
-                onPressed: onAction,
-                variant: AppButtonVariant.outline,
-                size: AppButtonSize.medium,
-                expand: false,
-              ),
-            ],
           ],
         ),
       ),

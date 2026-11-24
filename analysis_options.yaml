@@ -1,24 +1,11 @@
-include: package:flutter_lints/flutter.yaml
-
 analyzer:
   exclude:
-    - "**/*.g.dart"
-    - "**/*.freezed.dart"
     - build/**
-    - android/**
-    - ios/**
     - web/**
-    - windows/**
-    - macos/**
-    - linux/**
-  errors:
-    # freezed puts json_serializable annotations on factory parameters.
-    deprecated_member_use: ignore
-    invalid_annotation_target: ignore
+include: package:flutter_lints/flutter.yaml
 
 linter:
   rules:
     prefer_single_quotes: true
-    prefer_const_constructors: true
-    prefer_final_locals: true
-    always_use_package_imports: true
+    always_declare_return_types: true
+    avoid_print: true

@@ -1,132 +1,191 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smart_memories/core/di/injection.dart';
-import 'package:smart_memories/core/helpers/session_helper.dart';
-import 'package:smart_memories/core/routing/app_routes.dart';
-import 'package:smart_memories/core/widgets/app_bottom_nav.dart';
-import 'package:smart_memories/core/widgets/coming_soon_screen.dart';
-import 'package:smart_memories/features/auth/presentation/cubit/auth_cubit.dart';
-import 'package:smart_memories/features/auth/presentation/screens/login_screen.dart';
-import 'package:smart_memories/features/auth/presentation/screens/sign_up_screen.dart';
-import 'package:smart_memories/features/auth/presentation/screens/splash_screen.dart';
-import 'package:smart_memories/features/memories/presentation/cubit/memory_detail_cubit.dart';
-import 'package:smart_memories/features/memories/presentation/cubit/memory_editor_cubit.dart';
-import 'package:smart_memories/features/memories/presentation/screens/memory_detail_screen.dart';
-import 'package:smart_memories/features/memories/presentation/screens/memory_editor_screen.dart';
-import 'package:smart_memories/features/places/presentation/cubit/home_cubit.dart';
-import 'package:smart_memories/features/places/presentation/screens/home_screen.dart';
-import 'package:smart_memories/features/profile/presentation/cubit/profile_cubit.dart';
-import 'package:smart_memories/features/profile/presentation/screens/profile_screen.dart';
 
-/// Builds the app's router.
+import '../../features/auth/presentation/cubit/forgot_password_cubit.dart';
+import '../../features/auth/presentation/cubit/login_cubit.dart';
+import '../../features/auth/presentation/cubit/register_cubit.dart';
+import '../../features/auth/presentation/screens/forgot_password_screen.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/home/presentation/cubit/home_cubit.dart';
+import '../../features/home/presentation/screens/home_screen.dart';
+import '../../features/memories/presentation/screens/create_memory_screen.dart';
+import '../../features/memories/presentation/screens/edit_memory_screen.dart';
+import '../../features/memories/presentation/screens/memory_details_screen.dart';
+import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../../features/places/presentation/screens/place_details_screen.dart';
+import '../../features/places/presentation/screens/place_form_screen.dart';
+import '../../features/places/presentation/screens/places_screen.dart';
+import '../../features/places/presentation/screens/then_now_screen.dart';
+import '../../features/profile/presentation/screens/drafts_screen.dart';
+import '../../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../../features/profile/presentation/screens/favourites_screen.dart';
+import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/settings/presentation/cubit/settings_cubit.dart';
+import '../../features/settings/presentation/screens/app_lock_screen.dart';
+import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/splash/presentation/cubit/splash_cubit.dart';
+import '../../features/splash/presentation/screens/splash_screen.dart';
+import '../../features/timeline/presentation/screens/timeline_screen.dart';
+import '../di/injection.dart';
+import '../session/session_manager.dart';
+import 'app_routes.dart';
+
+/// All routes, plus the redirect that decides between logged-out and
+/// logged-in screens.
 ///
-/// Access control lives in [_redirect] and nowhere else: it reads the session
-/// status and decides where the user may be. Screens never check whether
-/// someone is logged in, and never navigate after login or logout; they
-/// change the session and the router reacts.
-///
-/// Each route creates the Cubit its screen needs, so a Cubit lives exactly
-/// as long as its screen.
-GoRouter createRouter(SessionHelper session) {
-  return GoRouter(
-    initialLocation: AppRoutes.splash,
-    refreshListenable: session,
-    redirect: (context, state) => _redirect(session, state.matchedLocation),
-    routes: <RouteBase>[
-      GoRoute(
-        path: AppRoutes.splash,
-        builder: (context, state) => BlocProvider<AuthCubit>(
-          create: (_) => getIt<AuthCubit>()..checkSession(),
-          child: const SplashScreen(),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.login,
-        builder: (context, state) => BlocProvider<AuthCubit>(
-          create: (_) => getIt<AuthCubit>(),
-          child: const LoginScreen(),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.signUp,
-        builder: (context, state) => BlocProvider<AuthCubit>(
-          create: (_) => getIt<AuthCubit>(),
-          child: const SignUpScreen(),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.home,
-        builder: (context, state) => BlocProvider<HomeCubit>(
-          create: (_) => getIt<HomeCubit>()..load(),
-          child: const HomeScreen(),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.profile,
-        builder: (context, state) => MultiBlocProvider(
-          providers: [
-            BlocProvider<ProfileCubit>(
-              create: (_) => getIt<ProfileCubit>()..load(),
-            ),
-            BlocProvider<AuthCubit>(create: (_) => getIt<AuthCubit>()),
-          ],
-          child: const ProfileScreen(),
-        ),
-      ),
-      // Declared before /memories/:id so "new" is not read as an id.
-      GoRoute(
-        path: AppRoutes.memoryNew,
-        builder: (context, state) => BlocProvider<MemoryEditorCubit>(
-          create: (_) => getIt<MemoryEditorCubit>(),
-          child: const MemoryEditorScreen(),
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.memoryDetailPattern,
-        builder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return BlocProvider<MemoryDetailCubit>(
-            create: (_) => getIt<MemoryDetailCubit>()..load(id),
-            child: MemoryDetailScreen(memoryId: id),
-          );
-        },
-      ),
-      GoRoute(
-        path: AppRoutes.map,
-        builder: (context, state) =>
-            const ComingSoonScreen(title: 'Map', tab: AppNavTab.map),
-      ),
-      GoRoute(
-        path: AppRoutes.collections,
-        builder: (context, state) => const ComingSoonScreen(
-          title: 'Collections',
-          tab: AppNavTab.collections,
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.timeline,
-        builder: (context, state) => const ComingSoonScreen(title: 'Timeline'),
-      ),
-      GoRoute(
-        path: AppRoutes.search,
-        builder: (context, state) => const ComingSoonScreen(title: 'Search'),
-      ),
-    ],
-  );
-}
-
-String? _redirect(SessionHelper session, String location) {
-  final onAuthScreen =
-      location == AppRoutes.login || location == AppRoutes.signUp;
-
-  switch (session.status) {
-    case SessionStatus.unknown:
-      return location == AppRoutes.splash ? null : AppRoutes.splash;
-    case SessionStatus.unauthenticated:
-      return onAuthScreen ? null : AppRoutes.login;
-    case SessionStatus.authenticated:
-      return onAuthScreen || location == AppRoutes.splash
-          ? AppRoutes.home
-          : null;
+/// The router listens to [SessionManager]. When the session changes (app
+/// start check finished, logged in, logged out, refresh token rejected), the
+/// redirect runs again and moves the user to the right place.
+class AppRouter {
+  AppRouter(this._session) {
+    router = GoRouter(
+      initialLocation: AppRoutes.splash,
+      refreshListenable: _session,
+      redirect: _redirect,
+      routes: _routes,
+    );
   }
+
+  final SessionManager _session;
+  late final GoRouter router;
+
+  String? _redirect(BuildContext context, GoRouterState state) {
+    final location = state.matchedLocation;
+    final loggedOutRoute = AppRoutes.loggedOutRoutes.contains(location);
+
+    switch (_session.status) {
+      case SessionStatus.unknown:
+        // Still checking the saved session: stay on the splash.
+        return location == AppRoutes.splash ? null : AppRoutes.splash;
+      case SessionStatus.unauthenticated:
+        if (location == AppRoutes.splash) {
+          return _session.onboardingSeen ? AppRoutes.login : AppRoutes.onboarding;
+        }
+        return loggedOutRoute ? null : AppRoutes.login;
+      case SessionStatus.authenticated:
+        if (location == AppRoutes.splash || loggedOutRoute) return AppRoutes.home;
+        return null;
+    }
+  }
+
+  static final List<RouteBase> _routes = [
+    // Logged out.
+    GoRoute(
+      path: AppRoutes.splash,
+      builder: (context, state) => BlocProvider(
+        lazy: false,
+        create: (_) => getIt<SplashCubit>()..start(),
+        child: const SplashScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.onboarding,
+      builder: (context, state) => const OnboardingScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.login,
+      builder: (context, state) => BlocProvider(
+        create: (_) => getIt<LoginCubit>(),
+        child: const LoginScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.register,
+      builder: (context, state) => BlocProvider(
+        create: (_) => getIt<RegisterCubit>(),
+        child: const RegisterScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.forgotPassword,
+      builder: (context, state) => BlocProvider(
+        create: (_) => getIt<ForgotPasswordCubit>(),
+        child: const ForgotPasswordScreen(),
+      ),
+    ),
+
+    // Main tabs.
+    GoRoute(
+      path: AppRoutes.home,
+      builder: (context, state) => BlocProvider(
+        create: (_) => getIt<HomeCubit>()..load(),
+        child: const HomeScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.timeline,
+      builder: (context, state) => const TimelineScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.places,
+      builder: (context, state) => const PlacesScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.profile,
+      builder: (context, state) => const ProfileScreen(),
+    ),
+
+    // Memories. `/memories/new` must come before `/memories/:memoryId`.
+    GoRoute(
+      path: AppRoutes.createMemory,
+      builder: (context, state) => const CreateMemoryScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.editMemory,
+      builder: (context, state) =>
+          EditMemoryScreen(memoryId: state.pathParameters['memoryId'] ?? ''),
+    ),
+    GoRoute(
+      path: AppRoutes.memoryDetails,
+      builder: (context, state) =>
+          MemoryDetailsScreen(memoryId: state.pathParameters['memoryId'] ?? ''),
+    ),
+
+    // Places. `/places/new` must come before `/places/:placeId`.
+    GoRoute(
+      path: AppRoutes.addPlace,
+      builder: (context, state) => const PlaceFormScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.editPlace,
+      builder: (context, state) => PlaceFormScreen(placeId: state.pathParameters['placeId']),
+    ),
+    GoRoute(
+      path: AppRoutes.thenNow,
+      builder: (context, state) =>
+          ThenNowScreen(placeId: state.pathParameters['placeId'] ?? ''),
+    ),
+    GoRoute(
+      path: AppRoutes.placeDetails,
+      builder: (context, state) =>
+          PlaceDetailsScreen(placeId: state.pathParameters['placeId'] ?? ''),
+    ),
+
+    // Profile and settings.
+    GoRoute(
+      path: AppRoutes.editProfile,
+      builder: (context, state) => const EditProfileScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.favourites,
+      builder: (context, state) => const FavouritesScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.drafts,
+      builder: (context, state) => const DraftsScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.settings,
+      builder: (context, state) => BlocProvider(
+        create: (_) => getIt<SettingsCubit>(),
+        child: const SettingsScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.appLock,
+      builder: (context, state) => const AppLockScreen(),
+    ),
+  ];
 }

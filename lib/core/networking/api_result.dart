@@ -1,30 +1,18 @@
-import 'package:smart_memories/core/networking/api_error.dart';
+import 'api_error.dart';
 
-/// The result of any repository call: either data or a user-friendly error.
-/// Repositories never throw; they return one of these.
+/// What every repository method returns: success with data, or a failure
+/// with an [ApiError]. Repositories never throw.
 sealed class ApiResult<T> {
   const ApiResult();
 
-  const factory ApiResult.success(T data) = ApiSuccess<T>;
-  const factory ApiResult.failure(ApiError error) = ApiFailure<T>;
-
-  R when<R>({
-    required R Function(T data) success,
-    required R Function(ApiError error) failure,
-  }) {
-    return switch (this) {
-      ApiSuccess<T>(:final data) => success(data),
-      ApiFailure<T>(:final error) => failure(error),
-    };
-  }
-
-  /// Converts the data (for example DTO to entity) and keeps a failure as is.
-  ApiResult<R> map<R>(R Function(T data) transform) {
-    return switch (this) {
-      ApiSuccess<T>(:final data) => ApiSuccess<R>(transform(data)),
-      ApiFailure<T>(:final error) => ApiFailure<R>(error),
-    };
-  }
+  R fold<R>({
+    required R Function(T data) onSuccess,
+    required R Function(ApiError error) onFailure,
+  }) =>
+      switch (this) {
+        ApiSuccess<T>(:final data) => onSuccess(data),
+        ApiFailure<T>(:final error) => onFailure(error),
+      };
 }
 
 final class ApiSuccess<T> extends ApiResult<T> {

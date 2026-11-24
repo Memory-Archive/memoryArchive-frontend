@@ -1,179 +1,267 @@
-# Smart Memories & Connections Platform — Flutter client
+# Memories Archive: Flutter app (semester 1)
 
-Feature-first clean architecture, Cubit state management, and a REST client for the Express backend. The `auth` feature is implemented end to end and is the pattern every other feature copies.
+The Flutter client for Memories Archive. It talks to the Express backend
+(`Memory-Archive/memoryArchive-backend`, folder `backend-express-ts`). Its API
+contract matches the backend documentation (Semester 1, PR #4,
+21 November 2026).
+
+## What's built
+
+| Screen | Status |
+| --- | --- |
+| Splash | Done. Checks the saved login and opens Home if you're still logged in |
+| Onboarding (3 pages) | Done. Shown on first launch only |
+| Log in | Done. `POST /auth/login`, fields checked as you type |
+| Create account | Done. `POST /auth/signup`, then logs in automatically |
+| Forgot password | Done. `POST /auth/forgot-password`; the backend returns 501 this semester, so the screen says "Not available yet" |
+| Home | Done. Greeting, On this day (once the backend has the route), recent memories (`GET /memories`) |
+| Profile | Partly: shows the logged-in user; stats and memory grid later |
+| Settings | Partly: **Log out works** (`POST /auth/logout`); other rows are placeholders |
+| Timeline, Places, Place details, Add/edit place, Then & Now, New memory, Memory details, Edit memory, Edit profile, Favourites, Drafts, App lock | Placeholder screens. The routes and links work; each screen says what it will do |
 
 ## First-time setup
 
-This repository contains the Dart code, tests and configuration. The platform folders (`android/`, `ios/`, `web/`) are generated on your machine:
+This repository has the Dart code, tests and config. Generate the platform
+folders on your machine once:
 
 ```bash
-# 1. Generate the platform folders (once). Keeps lib/, test/ and pubspec.yaml as they are.
-flutter create . --project-name smart_memories --platforms=android,ios,web
+# 1. Platform folders (keeps lib/, test/, pubspec.yaml as they are)
+flutter create . --project-name memories_archive --platforms=android,ios,web
 
-# 2. Install packages
+# 2. Packages
 flutter pub get
 
-# 3. Generate the freezed / json_serializable code (required before the first run)
-dart run build_runner build --delete-conflicting-outputs
-
-# 4. Run with mock data: no backend needed
+# 3. Run without a backend (fake data)
 flutter run --dart-define=USE_MOCK=true
 ```
 
-Requires Flutter with Dart 3.8 or newer. After `flutter pub get`, run `flutter pub outdated` to see whether newer package versions are available.
+Needs Flutter 3.32 or newer (Dart 3.8). There's **no code generation step**:
+models and states are plain Dart, so `build_runner` isn't needed.
 
-## Code generation (build_runner)
+### Photos
 
-Generated files (`*.freezed.dart`, `*.g.dart`) are not committed. Re-run the generator after pulling, and whenever you add or change a class annotated with `@freezed`.
+Put your photos in `assets/images/` with the names listed in
+`assets/images/README.md`. Until you do, the app shows grey placeholder boxes
+with the file name, so it still runs.
 
-| Command | When to use it |
-|---|---|
-| `dart run build_runner build --delete-conflicting-outputs` | One-off build |
-| `dart run build_runner watch --delete-conflicting-outputs` | Rebuilds on every save while you work |
-| `dart run build_runner clean` | If the generator gets stuck on stale output |
+## Running against the real backend
 
-## Running
+1. Start the backend (see its documentation): MySQL with `memory_archive`
+   imported, `npm run dev` in `backend-express-ts`.
+   `http://localhost:3000/health` must return `{ "status": "ok" }`.
+2. Run the app:
 
-| Mode | Command |
-|---|---|
-| Mock data (no backend) | `flutter run --dart-define=USE_MOCK=true` |
-| Real backend, Chrome | `flutter run -d chrome --web-port=5000` (uses `http://localhost:3000`) |
-| Real backend, Android emulator | `flutter run` (uses `http://10.0.2.2:3000`) |
-| Real backend, other address | `flutter run --dart-define=API_BASE_URL=http://192.168.1.20:3000` |
+| Where the app runs | Command | API address it uses |
+| --- | --- | --- |
+| Android emulator | `flutter run` | `http://10.0.2.2:3000` (the computer running the emulator) |
+| iOS simulator | `flutter run` | `http://localhost:3000` |
+| Chrome (web) | `flutter run -d chrome --web-port 5000` | `http://localhost:3000` |
+| Real phone on the same Wi-Fi | `flutter run --dart-define=API_BASE_URL=http://192.168.1.20:3000` | Your computer's IP address |
 
-The backend routes live at the root (`/auth/login`, `/memories`), so the base URL has no `/api`. When running in Chrome, the backend's `CORS_ORIGIN` must be `http://localhost:5000` (the port you pass to `--web-port`).
+The app never connects to MySQL itself. It only calls the backend's API; the
+backend reads and writes the database.
 
-In mock mode any email and password log in. Two addresses demonstrate error handling:
+### One-time platform settings for `http://` on your computer
 
-- log in with `wrong@example.com` to see a general error message;
-- sign up with `taken@example.com` to see a server error under the email field.
+The local backend uses plain `http://`, which phones block by default.
 
-Plain `http://` to a local backend is blocked by default on Android and iOS. For local development add `android:usesCleartextTraffic="true"` to the debug manifest (and an App Transport Security exception on iOS), or serve the API over HTTPS.
+**Android:** in `android/app/src/main/AndroidManifest.xml`, add this attribute
+to the `<application>` tag (debug and development only; remove it once the
+backend uses HTTPS):
 
-Checks:
+```xml
+<application
+    android:usesCleartextTraffic="true"
+    ...>
+```
+
+Real Android phones and emulators also need
+`<uses-permission android:name="android.permission.INTERNET"/>` in the same
+file (above `<application>`). `flutter create` adds it to the debug manifest only.
+
+**iOS:** in `ios/Runner/Info.plist`, inside the main `<dict>`:
+
+```xml
+<key>NSAppTransportSecurity</key>
+<dict>
+  <key>NSAllowsLocalNetworking</key>
+  <true/>
+</dict>
+```
+
+**Web:** the backend only accepts browser requests from `CORS_ORIGIN`. Set it
+in the backend's `.env` to the address the app runs on, then restart the
+backend:
+
+```env
+CORS_ORIGIN=http://localhost:5000
+```
+
+## Staying logged in
+
+When you log in, the access token, refresh token and user are saved in secure
+storage (Keychain on iOS, encrypted storage on Android). On the next launch,
+the splash screen:
+
+1. reads the saved refresh token and calls `POST /auth/refresh`;
+2. on success, saves the new pair of tokens and opens **Home** directly;
+3. if the server can't be reached, it still opens Home with the saved user and
+   refreshes later;
+4. if the token is expired, revoked or reused, it clears everything and shows
+   **Log in**.
+
+While you use the app, an expired access token (15 minutes) gets a 401. The
+`AuthInterceptor` then refreshes once and repeats the request. It's a queued
+interceptor, so several requests failing together cause only one refresh. This
+matters because the backend logs you out everywhere if an old refresh token is
+used twice.
+
+## Backend contract
+
+These match the backend documentation for PR #4.
+
+| Topic | What the app does |
+| --- | --- |
+| Base URL | `http://<host>:3000`, with **no `/api` prefix**. Paths start at `/`, for example `/auth/login` |
+| Success body | `{ "message": "...", "data": ... }`. The app reads `data` |
+| Error body | `{ "message": "...", "details": [{ "location", "path", "message" }] }`. Each `path` becomes a field error shown under that form field |
+| Sign up | `POST /auth/signup` with `username`, `email`, `password`. Returns 201 with the user and **no tokens**, so the app calls `POST /auth/login` right after |
+| Log in | `POST /auth/login` with `email`, `password`, `deviceName`. Returns the user, `accessToken` and `refreshToken` |
+| Refresh | `POST /auth/refresh` with `refreshToken`. Returns a new pair; the old refresh token stops working (rotation) |
+| Log out | `POST /auth/logout` with `refreshToken`. Always 200 |
+| Auth header | `Authorization: Bearer <accessToken>` on every request except `/auth/...` |
+| Password | 8 to 128 characters (checked on Create account only; Log in only checks it isn't empty) |
+| Username | 3 to 30 characters: letters, numbers, `_` and `.` |
+| Email | Trimmed and lowercased before sending, as the backend stores it |
+| 401 on log in | "Email or password is incorrect." (the backend uses one message for both, on purpose) |
+| 403 on log in | "This account has been disabled." |
+| 409 on sign up | Shown under the email or username field |
+| 501 | Treated as "not available yet", never as a crash (forgot password, memories, `/users/me`) |
+
+Endpoint paths are all in `lib/core/constants/api_endpoints.dart`.
+
+### Checked against the backend code
+
+The auth wiring was checked against `Memory-Archive/memoryArchive-backend` at
+the merge of PR #4 (`d3a4cde`):
+
+- `POST /auth/signup` returns 201 `{ message: "Account created", data: { user } }`.
+- `POST /auth/login` returns `data: { user, tokenType, accessToken,
+  accessTokenExpiresIn, refreshToken, refreshTokenExpiresAt }`.
+- `POST /auth/refresh` returns the same token fields (no user).
+- The user object has `id`, `username`, `email`, `displayName`, `bio`,
+  `status` and the timestamps; `passwordHash` is never sent.
+- Validation errors are 400 with `details[].path` as the field name. The 409 on
+  signup says "Email is already registered" or "Username is already taken";
+  the app shows it under that field.
+- CORS allows exactly one origin (`CORS_ORIGIN`), and the server listens on
+  every network interface, so a real phone on the same Wi-Fi can reach it.
+
+### Still open with the backend
+
+- **`GET /users/me` returns 501.** The app uses the user returned at log in
+  and caches it. Switch to `/users/me` once it's built.
+- **`GET /memories` returns 501.** Home shows "Memories are coming soon"
+  until it works. The app sends `GET /memories?limit=3`, which the backend's
+  query rules accept (`page`, `limit` 1–100).
+- **There's no `GET /memories/on-this-day` route** (it's on the backend to-do
+  list). The app doesn't call it yet; see `getOnThisDay()` in
+  `memories_remote_data_source.dart` to switch it on.
+- **Rate limiting on log in** isn't on yet (backend). The app already shows a
+  429 as "Too many attempts".
+
+## Mock mode
+
+`flutter run --dart-define=USE_MOCK=true` uses fake data sources that behave
+like the backend, including its error bodies:
+
+- any email and password log in, except `wrong@example.com` (shows "Email or
+  password is incorrect.");
+- signing up with `taken@example.com` shows "This email is already registered"
+  under the email field;
+- forgot password shows "Not available yet" (501, like the real backend);
+- Home shows sample memories (photos from `assets/images/sample_memory_*.jpg`).
+
+## Checks
 
 ```bash
 flutter analyze
 flutter test
 ```
 
-## Folder conventions
+## Folder structure
 
 ```
 lib/
   main.dart, app.dart
   core/
-    constants/   env (dart-define), API endpoints, storage keys, default error text
+    constants/   env (dart-define), API endpoints, storage keys, strings, asset paths
     di/          get_it registrations: the composition root
-    helpers/     extensions, date formatting, SessionHelper
-    networking/  Dio factory, auth interceptor, ApiResult<T>, safeApiCall, ApiError
-    storage/     LocalStorage interface + secure and prefs implementations
-    validation/  Validators, ValidatedTextField, safe DTO parsing
-    routing/     go_router config and route paths
-    themes/      colours, text styles, spacing, radii, sizes, ThemeData
-    widgets/     buttons, text field, card, chip, bottom nav, image, state views
+    helpers/     date formatting, form status
+    networking/  Dio factory, auth interceptor, ApiResult<T>, ApiError, safeApiCall, JSON helpers
+    routing/     route paths and the go_router config with the login redirect
+    session/     AppUser and SessionManager (who is logged in)
+    storage/     TokenStorage (secure storage)
+    themes/      colours, text styles, spacing, ThemeData
+    validation/  Validators with the backend's input rules
+    widgets/     buttons, text field, images and placeholders, bottom nav, state views
   features/
-    <feature>/
-      presentation/  screens/, widgets/, cubit/ (Cubit + freezed state)
-      domain/        entities/, repositories/ (abstract)
-      data/          models/ (DTOs), data_sources/ (remote + mock), repositories/ (impl)
+    auth/        log in, create account, forgot password (data, domain, presentation)
+    splash/      splash screen and session check
+    onboarding/  the three intro pages
+    home/        Home screen
+    memories/    memory entity, repository and data sources; placeholder screens
+    places/      placeholder screens
+    timeline/    placeholder screen
+    profile/     profile; placeholder edit profile, favourites, drafts
+    settings/    settings with log out; placeholder app lock
 ```
 
-Naming: `snake_case` files; `XxxScreen`, `XxxCubit`, `XxxState`, `XxxDto`, `XxxRepository` (abstract, in domain), `XxxRepositoryImpl` (in data), `XxxRemoteDataSource` with `XxxRemoteDataSourceImpl` and `MockXxxRemoteDataSource`.
-
-Feature status: `auth` is complete. `memories`, `places` (Home) and `profile` have working screens on mock data. `collections`, `journal`, `planning`, `social` and `ai` are empty folders.
-
-## Dependency rules
-
-1. **presentation → domain.** Screens and Cubits use entities and repository interfaces. They never import a DTO, a data source or Dio.
-2. **data → domain.** The data layer implements the domain's repository interfaces and converts DTOs to entities.
-3. **domain → nothing.** No Flutter, no Dio, no JSON. The one allowed import from `core` is the pure-Dart `ApiResult` / `ApiError` pair, because every repository method returns it.
-4. **Features use the shared Dio** from `core`, obtained through get_it. No feature creates its own client.
-5. **Feature to feature:** a feature may use another feature's **domain** layer (Home reads `MemoriesRepository`), never its data or presentation layer.
-6. **`core/di` and `core/routing` are the composition root.** They are the only `core` files that import from `features/`.
-
-How a request flows:
+Each feature has up to three layers:
 
 ```
-Screen → Cubit → Repository (interface) → RepositoryImpl → safeApiCall → RemoteDataSource → Dio
-                                                    ↓
-                               ApiResult<Entity>  (success | failure, never an exception)
+features/<feature>/
+  presentation/  screens/, widgets/, cubit/
+  domain/        entities/, repositories/ (abstract)
+  data/          models/ (DTOs), data_sources/ (remote + mock), repositories/ (impl)
 ```
 
-- Data sources **throw** (`DioException`, `DtoParsingException`).
-- Repositories **never throw**: every call is wrapped in `safeApiCall`, which returns `ApiResult<T>`.
-- Cubits turn an `ApiResult` into a state: `initial`, `loading`, `success`, `failure`.
+## Rules
 
-## Rules for screens
+1. **presentation → domain.** Screens and cubits use entities and repository
+   interfaces, never DTOs, data sources or Dio.
+2. **data → domain.** The data layer implements the repository interfaces and
+   converts DTOs to entities.
+3. **domain → nothing.** No Flutter, Dio or JSON. The only `core` imports
+   allowed are `ApiResult`, `ApiError` and `AppUser` (all pure Dart).
+4. **One Dio** for the whole app, from get_it. No feature creates its own.
+5. **Feature to feature:** only through the other feature's domain layer
+   (Home reads `MemoriesRepository`).
+6. **`core/di` and `core/routing`** are the only `core` files that import from
+   `features/`.
+7. **Repositories never throw.** Every call goes through `safeApiCall` and
+   returns `ApiResult<T>`. Data sources throw; repositories catch.
+8. **Screens never navigate after log in or log out.** The repository updates
+   `SessionManager`, and the router's redirect moves the user.
+9. **No hardcoded styles.** Use `AppColors`, `AppTextStyles`, `AppGap`,
+   `AppRadii` and `AppSizes`.
+10. **Navigate with `AppRoutes`** constants, never string literals.
+11. **Every list has loading, empty and error states** (`AppLoader`,
+    `EmptyState`, `ErrorState`).
+12. **Security:** tokens only in secure storage; request headers and bodies
+    are never logged; `/auth/` requests aren't logged at all; logging is off
+    in release builds.
 
-- **No hardcoded styles.** Colours come from `AppColors`, text from `AppTextStyles`, spacing from `AppSpacing` / `AppGap`, radii and sizes from `AppRadii` / `AppSizes`.
-- **Use the shared widgets** in `core/widgets` before writing a new one. If something is used on two screens, move it there.
-- **Screens do not decide who is logged in and do not navigate after login or logout.** The repository updates `SessionHelper`; the router's redirect reacts.
-- **Navigate with `AppRoutes`** constants, never string literals.
-- **Every list has loading, empty and error states** (`AppLoader`, `EmptyState`, `ErrorState`).
+## Adding a feature (example: Timeline)
 
-## How to add a new feature
-
-Copy the shape of `features/auth`. Using `collections` as the example:
-
-1. **Domain.** Add `domain/entities/collection.dart` (a `@freezed` class) and `domain/repositories/collections_repository.dart` (an `abstract interface class` whose methods return `Future<ApiResult<...>>`).
-2. **Data.**
-   - `data/models/collection_dto.dart`: a `@freezed` DTO with `fromJson` and a `toEntity()` method.
-   - `data/data_sources/collections_remote_data_source.dart`: the interface and the Dio implementation. Parse every response with `parseDto` / `parseDtoList`.
-   - `data/data_sources/mock_collections_remote_data_source.dart`: in-memory fake data.
-   - `data/repositories/collections_repository_impl.dart`: wrap each call in `safeApiCall`.
-3. **Presentation.** Add `presentation/cubit/collections_state.dart` (freezed union: initial, loading, success, failure), `collections_cubit.dart`, and the screens.
-4. **Endpoints.** Add the paths to `core/constants/api_endpoints.dart`.
-5. **DI.** In `core/di/injection.dart` add a `_registerCollections()` function that picks the mock or real data source with `Env.useMock`, registers the repository as a lazy singleton and the Cubit as a factory. Call it from `configureDependencies()`.
-6. **Routing.** Add the path to `AppRoutes` and a `GoRoute` in `app_router.dart` that provides the Cubit. Replace the `ComingSoonScreen` placeholder if there is one.
-7. **Generate and check.** Run build_runner, then `flutter analyze` and `flutter test`.
-
-## Core building blocks
-
-| Need | Use |
-|---|---|
-| Call the API safely | `safeApiCall(() => remote.something())` returns `ApiResult<T>` |
-| Read a response body | `parseDto(json, XDto.fromJson, name: 'XDto')` |
-| Show an error | `error.message` (always short and user-friendly) |
-| Show a server error under a field | `ValidatedTextField(serverError: error?.messageFor('email'))` |
-| Validate a field | `Validators.compose([Validators.required('Email'), Validators.email()])` |
-| Store a token | `TokenStorage` (secure storage) |
-| Store a setting | `getIt<LocalStorage>(instanceName: DiNames.prefsStorage)` |
-| Change the backend error format | `core/networking/backend_error_format.dart` only |
-
-Security notes: tokens are kept in secure storage only; request headers are never logged; `/auth/` requests are not logged at all; logging is disabled outside debug builds; a 401 triggers exactly one token refresh, and a failed refresh logs the user out.
-
-## Backend contract (from memoryArchive-backend)
-
-Checked against the backend source. "Not implemented yet" means the route exists but the server still answers 501, so the app cannot use it until the backend developer builds it.
-
-1. **Base URL** has no prefix: `http://<host>:3000`.
-2. **Success body** is `{ "message": string, "data": ... }`. The app unwraps `data` with `unwrapData` (`core/validation/safe_json.dart`).
-3. **Error body** is `{ "message": string, "details"?: ... }`. For validation errors (400) `details` is `[{ "location": "body", "path": "email", "message": string }]`. A taken email or username is a 409 with only a message; the app attaches it to the matching field. All parsing is in `core/networking/backend_error_format.dart`.
-4. `POST /auth/signup` takes `{ username, email, password, displayName? }` and returns 201 `data: { user }` with **no tokens**. The app therefore signs up and then logs in. Username: 3 to 30 characters, letters, numbers, `_` and `.`. Password: 8 to 128 characters on the server (the app requires 10).
-5. `POST /auth/login` takes `{ email, password, deviceName? }` and is meant to return `data: { accessToken, refreshToken }`. **Not implemented yet.**
-6. `POST /auth/refresh` and `POST /auth/logout` take `{ refreshToken }`. **Not implemented yet.** Refresh tokens are opaque and rotate on every refresh.
-7. `GET /users/me`, `GET /users/me/sessions` and `DELETE /users/me/sessions/:sessionId`. **Not implemented yet.** `/users/me` is assumed to return the user (directly or as `{ user }`).
-8. Protected routes need `Authorization: Bearer <accessToken>`. The authentication middleware is **not implemented yet**, so every protected route answers 501 after the header check.
-9. `GET /memories` takes `page`, `limit`, `from`, `to`, `placeId`, `tagId`, `q` and `sort=newest|oldest`. **Not implemented yet**, and the list shape (plain array or paginated object) is unknown. `GET /memories/on-this-day` does not exist. The app's memory models (`placeName`, `coverUrl`, `photoUrls` ...) have not been matched to the backend yet.
-10. Ids are UUID strings; dates are `YYYY-MM-DD`; timestamps are ISO-8601.
-11. **Not in the backend yet:** the app's profile "device sessions" screen expects `deviceName`, `location`, `lastActiveAt` and `isCurrent`; confirm these names when sessions are built.
-
-## Missing from the design
-
-Listed here instead of guessed. Each one is either a placeholder in the app or shows a "not available yet" message.
-
-1. **Fonts.** The design uses Fraunces and DM Sans. The font files are not in the repository, so the app uses the platform font until they are added (instructions in `pubspec.yaml`).
-2. **Splash screen.** Not designed; the app shows the app name and a spinner.
-3. **App name.** The design says "Memories Archive"; the project is now called "Smart Memories & Connections Platform". The app shows the design's name (`AppStrings.appName`).
-4. **Editing a memory.** The Edit button links to the editor, but the design shows only "New memory". Edit currently opens an empty editor.
-5. **Place picker.** The editor has the Place row, but no picker screen is designed and no map provider is chosen.
-6. **Photo picking and upload.** No picker package is in the agreed stack. In mock mode the editor shows the design's three sample tiles (including the 60% upload) so the layout can be reviewed.
-7. **Collection picker** for "Add to a collection".
-8. **Tags, tagged people and music link** have no input in the editor design.
-9. **Forgot password**, **Edit profile**, **Change password** and **Delete account** have no screens.
-10. **Delete memory confirmation.** Not designed; the app asks with a standard dialog before deleting.
-11. **Photo gallery.** The "1 of 6" badge and "+2 more" tile imply a gallery that is not designed.
-12. **Map, Collections, Timeline and Search** are designed but outside this task. Their routes show a placeholder screen so every link works.
-13. **Loading, empty and error states** are not drawn for any screen; the app uses the shared state widgets.
-14. **Home lives in the `places` feature** as requested, although it shows memories. Consider moving it to `journal` later.
+1. **Domain:** reuse `Memory` or add an entity; add methods to the repository
+   interface returning `Future<ApiResult<...>>`.
+2. **Data:** a DTO with `fromJson` and `toEntity()`, the Dio data source, a
+   mock data source, and the repository implementation using `safeApiCall`.
+3. **Presentation:** a cubit with a sealed state (loading / loaded / failure),
+   then replace the placeholder screen's body.
+4. **Endpoint:** add the path to `ApiEndpoints`.
+5. **DI:** register the data source (mock or real with `Env.useMock`), the
+   repository (lazy singleton) and the cubit (factory) in `core/di/injection.dart`.
+6. **Route:** wrap the screen in a `BlocProvider` in `app_router.dart`.
+7. Run `flutter analyze` and `flutter test`.

@@ -6,15 +6,20 @@
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
-*.iml
+
+# IDE
 .idea/
 .vscode/
+*.iml
 
-# Generated code is not committed: run build_runner after pulling.
-*.g.dart
-*.freezed.dart
-
-# Local environment
-.env
-*.log
+# OS
 .DS_Store
+
+# Generated platform folders are created on each machine with `flutter create .`
+# Remove these lines if the team decides to commit them.
+android/
+ios/
+web/
+linux/
+macos/
+windows/

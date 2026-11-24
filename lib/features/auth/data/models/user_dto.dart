@@ -1,34 +1,54 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:smart_memories/features/auth/domain/entities/user.dart';
+import '../../../../core/networking/json_helpers.dart';
+import '../../../../core/session/app_user.dart';
 
-part 'user_dto.freezed.dart';
-part 'user_dto.g.dart';
+/// The user object the backend returns from signup and login.
+///
+/// Only `id`, `username` and `email` are required. Both camelCase and
+/// snake_case keys are accepted.
+class UserDto {
+  const UserDto({
+    required this.id,
+    required this.username,
+    required this.email,
+    this.displayName,
+    this.bio,
+  });
 
-/// The user object exactly as the API sends it.
-@freezed
-abstract class UserDto with _$UserDto {
-  const UserDto._();
+  factory UserDto.fromJson(Map<String, dynamic> json) => UserDto(
+        id: readRequiredString(json, const ['id', 'userId', 'user_id'], 'UserDto'),
+        username: readRequiredString(json, const ['username'], 'UserDto'),
+        email: readRequiredString(json, const ['email'], 'UserDto'),
+        displayName: readString(json, const ['displayName', 'display_name']),
+        bio: readString(json, const ['bio']),
+      );
 
-  const factory UserDto({
-    required String id,
-    required String username,
-    required String email,
-    String? displayName,
-    String? bio,
-    DateTime? passwordChangedAt,
-  }) = _UserDto;
+  factory UserDto.fromEntity(AppUser user) => UserDto(
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        displayName: user.displayName,
+        bio: user.bio,
+      );
 
-  factory UserDto.fromJson(Map<String, dynamic> json) =>
-      _$UserDtoFromJson(json);
+  final String id;
+  final String username;
+  final String email;
+  final String? displayName;
+  final String? bio;
 
-  User toEntity() {
-    return User(
-      id: id,
-      username: username,
-      email: email,
-      displayName: displayName,
-      bio: bio,
-      passwordChangedAt: passwordChangedAt,
-    );
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'username': username,
+        'email': email,
+        if (displayName != null) 'displayName': displayName,
+        if (bio != null) 'bio': bio,
+      };
+
+  AppUser toEntity() => AppUser(
+        id: id,
+        username: username,
+        email: email,
+        displayName: displayName,
+        bio: bio,
+      );
 }

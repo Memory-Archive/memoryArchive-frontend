@@ -1,47 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:smart_memories/core/themes/app_colors.dart';
-import 'package:smart_memories/core/themes/app_spacing.dart';
 
-/// A round surface-coloured icon button (back, search).
+import '../themes/app_colors.dart';
+import '../themes/app_spacing.dart';
+
+/// Round 44 px button (back, edit, settings...).
 class CircleIconButton extends StatelessWidget {
   const CircleIconButton({
     super.key,
     required this.icon,
-    required this.semanticLabel,
+    required this.tooltip,
     required this.onPressed,
-    this.bordered = true,
+    this.background = AppColors.card,
+    this.foreground = AppColors.ink,
   });
 
   final IconData icon;
-
-  /// Read by screen readers; the button has no visible text.
-  final String semanticLabel;
-  final VoidCallback? onPressed;
-
-  /// The border is dropped when the button sits on top of a photo.
-  final bool bordered;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final Color background;
+  final Color foreground;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: semanticLabel,
+    return Tooltip(
+      message: tooltip,
       child: Material(
-        color: AppColors.surface,
+        color: background,
+        shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
-        shape: CircleBorder(
-          side: bordered
-              ? const BorderSide(
-                  color: AppColors.line,
-                  width: AppSizes.borderWidth,
-                )
-              : BorderSide.none,
-        ),
         child: InkWell(
           onTap: onPressed,
-          child: SizedBox.square(
-            dimension: AppSizes.touchTarget,
-            child: Icon(icon, size: AppSizes.iconMedium, color: AppColors.ink),
+          child: SizedBox(
+            width: AppSizes.touch,
+            height: AppSizes.touch,
+            child: Icon(icon, color: foreground, size: 22, semanticLabel: tooltip),
           ),
         ),
       ),

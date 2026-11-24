@@ -1,135 +1,94 @@
 import 'package:flutter/material.dart';
-import 'package:smart_memories/core/themes/app_colors.dart';
-import 'package:smart_memories/core/themes/app_spacing.dart';
-import 'package:smart_memories/core/themes/app_text_styles.dart';
 
-enum AppButtonVariant {
-  /// Filled green: the main action on a screen.
-  primary,
+import '../themes/app_colors.dart';
+import '../themes/app_spacing.dart';
+import '../themes/app_text_styles.dart';
 
-  /// Green outline on a transparent background.
-  outline,
+enum AppButtonVariant { primary, outline, text }
 
-  /// Filled dark ink (Log out).
-  dark,
-
-  /// Red outline (Delete memory).
-  dangerOutline,
-
-  /// Red text, no border (Delete account, Log out of a device).
-  dangerText,
-
-  /// Green text, no border (links such as "Create an account").
-  text,
-
-  /// Surface-coloured with dark text, for buttons placed on top of a photo.
-  surface,
-}
-
-enum AppButtonSize {
-  large(AppSizes.buttonLarge, AppRadii.card, AppTextStyles.button),
-  medium(AppSizes.buttonMedium, AppRadii.card, AppTextStyles.buttonSm),
-  pill(AppSizes.touchTarget, AppRadii.pill, AppTextStyles.buttonSm);
-
-  const AppButtonSize(this.height, this.radius, this.textStyle);
-
-  final double height;
-  final double radius;
-  final TextStyle textStyle;
-}
-
-/// The only button widget screens should use.
+/// Pill-shaped button from the designs. Shows a spinner while [isLoading].
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.variant = AppButtonVariant.primary,
-    this.size = AppButtonSize.large,
     this.isLoading = false,
+    this.icon,
     this.expand = true,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final AppButtonVariant variant;
-  final AppButtonSize size;
-
-  /// Shows a spinner and ignores taps.
   final bool isLoading;
-
-  /// Fill the available width (true) or hug the label (false).
+  final IconData? icon;
   final bool expand;
 
   @override
   Widget build(BuildContext context) {
-    final (Color background, Color foreground, Color? border) = switch (variant) {
-      AppButtonVariant.primary => (AppColors.primary, AppColors.surface, null),
-      AppButtonVariant.outline => (
-        Colors.transparent,
-        AppColors.primary,
-        AppColors.primary,
-      ),
-      AppButtonVariant.dark => (AppColors.ink, AppColors.surface, null),
-      AppButtonVariant.dangerOutline => (
-        Colors.transparent,
-        AppColors.danger,
-        AppColors.danger,
-      ),
-      AppButtonVariant.dangerText => (
-        Colors.transparent,
-        AppColors.danger,
-        null,
-      ),
-      AppButtonVariant.text => (Colors.transparent, AppColors.primary, null),
-      AppButtonVariant.surface => (AppColors.surface, AppColors.ink, null),
+    final foreground = switch (variant) {
+      AppButtonVariant.primary => AppColors.onGreen,
+      AppButtonVariant.outline => AppColors.ink,
+      AppButtonVariant.text => AppColors.green,
     };
 
-    final isTextOnly =
-        variant == AppButtonVariant.text ||
-        variant == AppButtonVariant.dangerText;
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(size.radius),
-      side: border == null
-          ? BorderSide.none
-          : BorderSide(color: border, width: AppSizes.borderWidth),
-    );
-
-    final Widget content = isLoading
-        ? SizedBox.square(
-            dimension: AppSizes.iconMedium,
-            child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
+    final text = Text(label, overflow: TextOverflow.ellipsis);
+    final Widget child = isLoading
+        ? SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4, color: foreground),
           )
-        : Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: size.textStyle.copyWith(color: foreground),
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[Icon(icon, size: 18), AppGap.w8],
+              // Flexible only when the width is bounded (full-width buttons);
+              // a compact button inside a Row gets unbounded width.
+              if (expand) Flexible(child: text) else text,
+            ],
           );
 
-    return Semantics(
-      button: true,
-      enabled: onPressed != null && !isLoading,
-      child: Material(
-        color: background,
-        shape: shape,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: isLoading ? null : onPressed,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: size.height,
-              minWidth: expand ? double.infinity : AppSizes.touchTarget,
-            ),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isTextOnly ? AppSpacing.x4 : AppSpacing.x18,
-              ),
-              child: Center(widthFactor: 1, heightFactor: 1, child: content),
-            ),
+    final minimumSize = Size(expand ? double.infinity : 0, AppSizes.button);
+    final callback = isLoading ? null : onPressed;
+
+    return switch (variant) {
+      AppButtonVariant.primary => FilledButton(
+          onPressed: callback,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.green,
+            foregroundColor: AppColors.onGreen,
+            disabledBackgroundColor: AppColors.green.withValues(alpha: 0.6),
+            disabledForegroundColor: AppColors.onGreen,
+            minimumSize: minimumSize,
+            shape: const StadiumBorder(),
+            textStyle: AppTextStyles.button(),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
           ),
+          child: child,
         ),
-      ),
-    );
+      AppButtonVariant.outline => OutlinedButton(
+          onPressed: callback,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.ink,
+            minimumSize: minimumSize,
+            shape: const StadiumBorder(),
+            side: const BorderSide(color: AppColors.ink, width: 1.5),
+            textStyle: AppTextStyles.button(),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+          ),
+          child: child,
+        ),
+      AppButtonVariant.text => TextButton(
+          onPressed: callback,
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.green,
+            minimumSize: const Size(0, AppSizes.touch),
+            textStyle: AppTextStyles.body(size: 15, weight: FontWeight.w700),
+          ),
+          child: child,
+        ),
+    };
   }
 }

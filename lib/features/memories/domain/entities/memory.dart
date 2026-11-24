@@ -1,43 +1,24 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+/// A memory, as screens use it.
+class Memory {
+  const Memory({
+    required this.id,
+    required this.title,
+    required this.memoryDate,
+    this.description,
+    this.placeName,
+    this.coverImage,
+    this.photoCount = 0,
+  });
 
-part 'memory.freezed.dart';
+  final String id;
+  final String title;
 
-/// One saved memory.
-@freezed
-abstract class Memory with _$Memory {
-  const factory Memory({
-    required String id,
-    required String title,
-    required DateTime memoryDate,
-    String? description,
+  /// The day it happened (`memory_date`).
+  final DateTime memoryDate;
+  final String? description;
+  final String? placeName;
 
-    /// "HH:mm", optional.
-    String? memoryTime,
-    String? placeName,
-    String? coverUrl,
-    @Default(<String>[]) List<String> photoUrls,
-
-    /// Total photos including the cover; may exceed [photoUrls].length when
-    /// the list endpoint returns only a preview.
-    @Default(0) int photoCount,
-    @Default(<String>[]) List<String> tags,
-    @Default(<String>[]) List<String> taggedPeople,
-    String? musicUrl,
-    String? collectionName,
-
-    /// How many collection members can see this memory. 0 means private.
-    @Default(0) int sharedWithCount,
-  }) = _Memory;
-}
-
-/// What the editor collects before a memory exists.
-@freezed
-abstract class MemoryDraft with _$MemoryDraft {
-  const factory MemoryDraft({
-    required String title,
-    required DateTime memoryDate,
-    String? memoryTime,
-    String? placeName,
-    String? description,
-  }) = _MemoryDraft;
+  /// A photo URL from the backend, or an asset path in mock mode.
+  final String? coverImage;
+  final int photoCount;
 }

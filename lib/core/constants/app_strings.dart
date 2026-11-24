@@ -1,33 +1,11 @@
-/// Shared copy: the app name and the default, user-friendly error messages.
 abstract final class AppStrings {
   static const String appName = 'Memories Archive';
+  static const String tagline = 'places · moments · memories';
+  static const String appVersion = '0.1.0';
 
-  static const String unknownError = 'Something went wrong. Please try again.';
-  static const String timeout =
-      'The server took too long to respond. Please try again.';
-  static const String noConnection =
-      'No internet connection. Check your network and try again.';
-  static const String insecureConnection =
-      'A secure connection could not be established.';
-  static const String cancelled = 'The request was cancelled.';
-  static const String unexpectedResponse =
-      'We received an unexpected response. Please try again later.';
-
-  static const String invalidRequest =
-      'Some of the information is not valid. Please check it and try again.';
-  static const String unauthenticated =
-      'Your session has ended. Please log in again.';
-  static const String forbidden = 'You do not have permission to do that.';
-  static const String notFound = 'We could not find what you were looking for.';
-  static const String conflict =
-      'That conflicts with something that already exists.';
-  static const String tooManyRequests =
-      'Too many attempts. Please wait a moment and try again.';
-  static const String serverError =
-      'The server ran into a problem. Please try again later.';
-
-  static const String notImplemented =
-      'This feature is not available on the server yet.';
-
-  static const String notAvailableYet = 'This is not available yet.';
+  static const String genericError = 'Something went wrong. Please try again.';
+  static const String networkError =
+      "Can't reach the server. Check your connection and that the backend is running.";
+  static const String timeoutError = 'The server took too long to answer. Try again.';
+  static const String notAvailableYet = "This feature isn't available yet.";
 }

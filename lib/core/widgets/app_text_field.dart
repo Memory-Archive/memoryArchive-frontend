@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:smart_memories/core/themes/app_spacing.dart';
-import 'package:smart_memories/core/themes/app_text_styles.dart';
 
-/// A text field with its label above it, as in the design. Borders, fill and
-/// height come from the theme (core/themes/app_theme.dart).
+import '../themes/app_colors.dart';
+import '../themes/app_spacing.dart';
+import '../themes/app_text_styles.dart';
+import '../validation/validators.dart';
+
+/// Text field with its label above it, as in the designs.
 ///
-/// For a field with validation rules use ValidatedTextField, which wraps this.
+/// * [validator] runs as the user types ([AutovalidateMode.onUserInteraction])
+///   and again when the form is submitted.
+/// * [serverError] shows a message from the backend under the field (for
+///   example "This email is already registered"). Clear it when the user
+///   types again.
 class AppTextField extends StatelessWidget {
   const AppTextField({
     super.key,
@@ -13,70 +19,95 @@ class AppTextField extends StatelessWidget {
     this.controller,
     this.hint,
     this.helper,
-    this.errorText,
     this.validator,
-    this.obscureText = false,
+    this.serverError,
     this.keyboardType,
     this.textInputAction,
     this.autofillHints,
-    this.maxLines = 1,
-    this.readOnly = false,
-    this.onTap,
-    this.onFieldSubmitted,
+    this.obscureText = false,
+    this.suffix,
+    this.onChanged,
+    this.onSubmitted,
+    this.enabled = true,
+    this.maxLength,
   });
 
   final String label;
   final TextEditingController? controller;
   final String? hint;
-
-  /// A muted line under the field, e.g. password advice.
   final String? helper;
-
-  /// An error that did not come from [validator], e.g. from the server.
-  final String? errorText;
-  final FormFieldValidator<String>? validator;
-  final bool obscureText;
+  final Validator? validator;
+  final String? serverError;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final Iterable<String>? autofillHints;
-  final int maxLines;
-
-  /// Read-only fields open a picker through [onTap] (date, time).
-  final bool readOnly;
-  final VoidCallback? onTap;
-  final ValueChanged<String>? onFieldSubmitted;
+  final bool obscureText;
+  final Widget? suffix;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final bool enabled;
+  final int? maxLength;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(label, style: AppTextStyles.label),
-        AppGap.v6,
-        Semantics(
-          label: label,
-          child: TextFormField(
-            controller: controller,
-            validator: validator,
-            obscureText: obscureText,
-            keyboardType: keyboardType,
-            textInputAction: textInputAction,
-            autofillHints: autofillHints,
-            maxLines: obscureText ? 1 : maxLines,
-            readOnly: readOnly,
-            onTap: onTap,
-            onFieldSubmitted: onFieldSubmitted,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            style: AppTextStyles.body,
-            decoration: InputDecoration(hintText: hint, errorText: errorText),
+      children: [
+        Text(label, style: AppTextStyles.label()),
+        AppGap.h6,
+        TextFormField(
+          controller: controller,
+          enabled: enabled,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          autofillHints: autofillHints,
+          obscureText: obscureText,
+          enableSuggestions: !obscureText,
+          autocorrect: !obscureText,
+          maxLength: maxLength,
+          validator: validator,
+          forceErrorText: serverError,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          onChanged: onChanged,
+          onFieldSubmitted: onSubmitted,
+          style: AppTextStyles.body(size: 16),
+          cursorColor: AppColors.green,
+          decoration: InputDecoration(
+            hintText: hint,
+            helperText: helper,
+            suffixIcon: suffix,
+            counterText: '',
           ),
         ),
-        if (helper != null) ...<Widget>[
-          AppGap.v6,
-          Text(helper!, style: AppTextStyles.small),
-        ],
       ],
+    );
+  }
+}
+
+/// The eye button inside password fields.
+class PasswordVisibilityButton extends StatelessWidget {
+  const PasswordVisibilityButton({
+    super.key,
+    required this.obscured,
+    required this.onPressed,
+    this.plural = false,
+  });
+
+  final bool obscured;
+  final VoidCallback onPressed;
+
+  /// "Show passwords" when one button controls two fields.
+  final bool plural;
+
+  @override
+  Widget build(BuildContext context) {
+    final noun = plural ? 'passwords' : 'password';
+    return IconButton(
+      tooltip: obscured ? 'Show $noun' : 'Hide $noun',
+      onPressed: onPressed,
+      color: AppColors.muted,
+      icon: Icon(obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined),
     );
   }
 }

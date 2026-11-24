@@ -1,8 +1,10 @@
-/// Keys used with LocalStorage. Token keys live in secure storage only.
+/// Keys for secure storage (tokens, cached user) and shared preferences.
 abstract final class StorageKeys {
-  static const String accessToken = 'access_token';
-  static const String refreshToken = 'refresh_token';
+  // Secure storage.
+  static const String accessToken = 'auth.access_token';
+  static const String refreshToken = 'auth.refresh_token';
+  static const String cachedUser = 'auth.cached_user';
 
-  // Non-sensitive settings (shared_preferences).
-  static const String hasSeenOnboarding = 'has_seen_onboarding';
+  // Shared preferences.
+  static const String onboardingSeen = 'app.onboarding_seen';
 }

@@ -1,6 +1,6 @@
 {
-    "name": "smart_memories",
-    "short_name": "smart_memories",
+    "name": "memories_archive",
+    "short_name": "memories_archive",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

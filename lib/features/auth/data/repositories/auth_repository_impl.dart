@@ -1,134 +1,173 @@
-import 'package:smart_memories/core/constants/app_strings.dart';
-import 'package:smart_memories/core/helpers/session_helper.dart';
-import 'package:smart_memories/core/networking/api_error.dart';
-import 'package:smart_memories/core/networking/api_result.dart';
-import 'package:smart_memories/core/networking/safe_api_call.dart';
-import 'package:smart_memories/core/storage/token_storage.dart';
-import 'package:smart_memories/features/auth/data/data_sources/auth_remote_data_source.dart';
-import 'package:smart_memories/features/auth/data/models/auth_dtos.dart';
-import 'package:smart_memories/features/auth/data/models/user_dto.dart';
-import 'package:smart_memories/features/auth/domain/entities/user.dart';
-import 'package:smart_memories/features/auth/domain/repositories/auth_repository.dart';
+import 'dart:convert';
 
-/// The pattern every repository follows:
-///   1. call the remote data source inside safeApiCall (so nothing throws),
-///   2. apply side effects on success (here: save tokens, mark the session),
-///   3. map the DTO to a domain entity.
+import 'package:flutter/foundation.dart';
+
+import '../../../../core/networking/api_error.dart';
+import '../../../../core/networking/api_result.dart';
+import '../../../../core/networking/json_helpers.dart';
+import '../../../../core/networking/safe_api_call.dart';
+import '../../../../core/session/app_user.dart';
+import '../../../../core/session/session_manager.dart';
+import '../../../../core/storage/token_storage.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../data_sources/auth_remote_data_source.dart';
+import '../models/user_dto.dart';
+
 class AuthRepositoryImpl implements AuthRepository {
-  const AuthRepositoryImpl({
+  AuthRepositoryImpl({
     required AuthRemoteDataSource remote,
     required TokenStorage tokenStorage,
-    required SessionHelper session,
-  }) : _remote = remote,
-       _tokens = tokenStorage,
-       _session = session;
+    required SessionManager session,
+  })  : _remote = remote,
+        _tokens = tokenStorage,
+        _session = session;
 
   final AuthRemoteDataSource _remote;
   final TokenStorage _tokens;
-  final SessionHelper _session;
+  final SessionManager _session;
 
-  /// POST /auth/login returns tokens only, so the user is fetched afterwards.
+  /// Saved in `auth_sessions.device_name`, so the user can tell their
+  /// devices apart later.
+  static String get _deviceName =>
+      'Memories Archive app (${kIsWeb ? 'web' : defaultTargetPlatform.name})';
+
   @override
-  Future<ApiResult<User>> login({
-    required String email,
-    required String password,
-  }) async {
-    final tokens = await safeApiCall(
-      () => _remote.login(LoginRequestDto(email: email, password: password)),
+  Future<ApiResult<AppUser>> login({required String email, required String password}) async {
+    final result = await safeApiCall(
+      () => _remote.login(
+        email: _normaliseEmail(email),
+        password: password,
+        deviceName: _deviceName,
+      ),
     );
-    return _finishSignIn(tokens);
+    switch (result) {
+      case ApiSuccess(:final data):
+        final user = data.user.toEntity();
+        await _tokens.saveTokens(
+          accessToken: data.tokens.accessToken,
+          refreshToken: data.tokens.refreshToken,
+        );
+        await _tokens.saveUserJson(jsonEncode(data.user.toJson()));
+        _session.setAuthenticated(user);
+        return ApiSuccess(user);
+      case ApiFailure(:final error):
+        return ApiFailure(_loginError(error));
+    }
   }
 
-  /// POST /auth/signup creates the account but issues no tokens, so signing
-  /// up is signup followed by login. The user from signup is reused.
   @override
-  Future<ApiResult<User>> register({
+  Future<ApiResult<AppUser>> register({
     required String username,
     required String email,
     required String password,
   }) async {
-    final created = await safeApiCall(
-      () => _remote.register(
-        RegisterRequestDto(username: username, email: email, password: password),
-      ),
+    final normalisedEmail = _normaliseEmail(email);
+    final signup = await safeApiCall(
+      () => _remote.signup(username: username.trim(), email: normalisedEmail, password: password),
     );
-    switch (created) {
-      case ApiFailure<UserDto>(:final error):
-        return ApiFailure<User>(error);
-      case ApiSuccess<UserDto>(:final data):
-        final tokens = await safeApiCall(
-          () => _remote.login(LoginRequestDto(email: email, password: password)),
-        );
-        return _finishSignIn(tokens, knownUser: data.toEntity());
+    if (signup case ApiFailure(:final error)) {
+      return ApiFailure(_signupError(error));
     }
+
+    // The account exists now; log in to get tokens.
+    final loginResult = await login(email: normalisedEmail, password: password);
+    if (loginResult case ApiFailure(:final error)) {
+      return ApiFailure(error.copyWith(
+        message: 'Your account was created, but logging in failed. Please log in.',
+      ));
+    }
+    return loginResult;
   }
 
   @override
-  Future<ApiResult<User>> restoreSession() async {
-    if (!await _session.hasStoredSession()) {
-      await _session.end();
-      return const ApiFailure<User>(
-        ApiError(
-          message: AppStrings.unauthenticated,
-          code: ApiErrorCodes.unauthenticated,
-          statusCode: 401,
-        ),
-      );
+  Future<ApiResult<bool>> forgotPassword(String email) => safeApiCall(() async {
+        await _remote.forgotPassword(_normaliseEmail(email));
+        return true;
+      });
+
+  @override
+  Future<void> restoreSession() async {
+    try {
+      await _restoreSession();
+    } catch (error) {
+      // Never leave the app stuck on the splash: on any unexpected error,
+      // start logged out.
+      if (kDebugMode) debugPrint('restoreSession failed: $error');
+      try {
+        await _tokens.clear();
+      } catch (_) {}
+      _session.setUnauthenticated();
+    }
+  }
+
+  Future<void> _restoreSession() async {
+    final refreshToken = await _tokens.readRefreshToken();
+    final cachedUser = await _readCachedUser();
+    if (refreshToken == null || cachedUser == null) {
+      await _tokens.clear();
+      _session.setUnauthenticated();
+      return;
     }
 
-    final result = await getCurrentUser();
+    final result = await safeApiCall(() => _remote.refresh(refreshToken));
     switch (result) {
-      case ApiSuccess<User>():
-        _session.markAuthenticated();
-        break;
-      case ApiFailure<User>(:final error):
-        // Only a rejected token ends the session. A network problem leaves
-        // the tokens in place so the splash screen can offer "Try again".
-        if (error.isUnauthorized) await _session.end();
+      case ApiSuccess(:final data):
+        await _tokens.saveTokens(accessToken: data.accessToken, refreshToken: data.refreshToken);
+        _session.setAuthenticated(cachedUser);
+      case ApiFailure(:final error) when error.isConnectionProblem:
+        // Server unreachable: open the app with the saved user. The tokens
+        // are refreshed on the first request once the server is back.
+        _session.setAuthenticated(cachedUser);
+      case ApiFailure():
+        // Refresh token expired, revoked or reused: log in again.
+        await _tokens.clear();
+        _session.setUnauthenticated();
     }
-    return result;
-  }
-
-  @override
-  Future<ApiResult<User>> getCurrentUser() async {
-    final result = await safeApiCall(_remote.me);
-    return result.map((dto) => dto.toEntity());
   }
 
   @override
   Future<void> logout() async {
     final refreshToken = await _tokens.readRefreshToken();
-    // Best effort: the device session ends even if the server call fails.
-    await safeApiCall(() => _remote.logout(refreshToken));
-    await _session.end();
+    if (refreshToken != null) {
+      // Revokes this device's session on the server. The result doesn't
+      // matter: the device forgets the tokens either way.
+      await safeApiCall(() => _remote.logout(refreshToken));
+    }
+    await _tokens.clear();
+    _session.setUnauthenticated();
   }
 
-  /// Saves the tokens, resolves the user (fetching it unless [knownUser] is
-  /// given) and marks the session as signed in. If the user cannot be
-  /// fetched, the tokens are removed again so nothing is left half signed in.
-  Future<ApiResult<User>> _finishSignIn(
-    ApiResult<TokensDto> tokensResult, {
-    User? knownUser,
-  }) async {
-    switch (tokensResult) {
-      case ApiFailure<TokensDto>(:final error):
-        return ApiFailure<User>(error);
-      case ApiSuccess<TokensDto>(:final data):
-        await _tokens.save(
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-        );
-        if (knownUser != null) {
-          _session.markAuthenticated();
-          return ApiSuccess<User>(knownUser);
-        }
-        final me = await getCurrentUser();
-        if (me is ApiFailure<User>) {
-          await _tokens.clear();
-          return me;
-        }
-        _session.markAuthenticated();
-        return me;
+  // The backend lowercases emails before saving; do the same before sending.
+  String _normaliseEmail(String email) => email.trim().toLowerCase();
+
+  Future<AppUser?> _readCachedUser() async {
+    final raw = await _tokens.readUserJson();
+    if (raw == null) return null;
+    try {
+      return UserDto.fromJson(asJsonMap(jsonDecode(raw), 'cachedUser')).toEntity();
+    } catch (_) {
+      return null;
     }
+  }
+
+  ApiError _loginError(ApiError error) => switch (error.type) {
+        // The backend uses one message for a wrong email and a wrong password.
+        ApiErrorType.unauthorized => error.copyWith(message: 'Email or password is incorrect.'),
+        ApiErrorType.forbidden => error.copyWith(message: 'This account has been disabled.'),
+        _ => error,
+      };
+
+  /// 409 "email or username taken" may come without `details`; put the
+  /// message under the right field anyway.
+  ApiError _signupError(ApiError error) {
+    if (error.type != ApiErrorType.conflict || error.fieldErrors.isNotEmpty) return error;
+    final text = error.message.toLowerCase();
+    if (text.contains('username')) {
+      return error.copyWith(fieldErrors: {'username': 'This username is already taken'});
+    }
+    if (text.contains('email')) {
+      return error.copyWith(fieldErrors: {'email': 'This email is already registered'});
+    }
+    return error;
   }
 }

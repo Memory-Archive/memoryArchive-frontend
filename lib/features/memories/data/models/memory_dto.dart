@@ -1,79 +1,74 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:smart_memories/core/helpers/date_formatter.dart';
-import 'package:smart_memories/core/validation/safe_json.dart';
-import 'package:smart_memories/features/memories/domain/entities/memory.dart';
+import '../../../../core/networking/json_helpers.dart';
+import '../../domain/entities/memory.dart';
 
-part 'memory_dto.freezed.dart';
-part 'memory_dto.g.dart';
+/// A memory as the backend returns it. Column names follow the `memories`
+/// table (`memory_date`, `place_id`...); camelCase and snake_case are both
+/// accepted until the backend's memory endpoints are built.
+class MemoryDto {
+  const MemoryDto({
+    required this.id,
+    required this.title,
+    required this.memoryDate,
+    this.description,
+    this.placeName,
+    this.coverUrl,
+    this.photoCount = 0,
+  });
 
-/// A memory exactly as the API sends it.
-@freezed
-abstract class MemoryDto with _$MemoryDto {
-  const MemoryDto._();
+  factory MemoryDto.fromJson(Map<String, dynamic> json) {
+    final date = readDate(json, const ['memoryDate', 'memory_date']);
+    if (date == null) throw DtoParsingException('MemoryDto: missing "memoryDate"');
 
-  const factory MemoryDto({
-    required String id,
-    required String title,
+    String? placeName = readString(json, const ['placeName', 'place_name']);
+    final place = json['place'];
+    if (placeName == null && place is Map) {
+      placeName = readString(asJsonMap(place, 'MemoryDto.place'), const ['name']);
+    }
 
-    /// "YYYY-MM-DD".
-    required String memoryDate,
-    String? description,
-    String? memoryTime,
-    String? placeName,
-    String? coverUrl,
-    @Default(<String>[]) List<String> photoUrls,
-    @Default(0) int photoCount,
-    @Default(<String>[]) List<String> tags,
-    @Default(<String>[]) List<String> taggedPeople,
-    String? musicUrl,
-    String? collectionName,
-    @Default(0) int sharedWithCount,
-  }) = _MemoryDto;
-
-  factory MemoryDto.fromJson(Map<String, dynamic> json) =>
-      _$MemoryDtoFromJson(json);
-
-  Memory toEntity() {
-    return Memory(
-      id: id,
-      title: title,
-      memoryDate: parseDate(memoryDate, field: 'memoryDate'),
-      description: description,
-      memoryTime: memoryTime,
+    return MemoryDto(
+      id: readRequiredString(json, const ['id'], 'MemoryDto'),
+      title: readRequiredString(json, const ['title'], 'MemoryDto'),
+      memoryDate: date,
+      description: readString(json, const ['description']),
       placeName: placeName,
-      coverUrl: coverUrl,
-      photoUrls: photoUrls,
-      photoCount: photoCount,
-      tags: tags,
-      taggedPeople: taggedPeople,
-      musicUrl: musicUrl,
-      collectionName: collectionName,
-      sharedWithCount: sharedWithCount,
+      coverUrl: readString(json, const ['coverUrl', 'cover_url']),
+      photoCount: readInt(json, const ['photoCount', 'photo_count']) ?? 0,
     );
   }
+
+  final String id;
+  final String title;
+  final DateTime memoryDate;
+  final String? description;
+  final String? placeName;
+  final String? coverUrl;
+  final int photoCount;
+
+  Memory toEntity() => Memory(
+        id: id,
+        title: title,
+        memoryDate: memoryDate,
+        description: description,
+        placeName: placeName,
+        coverImage: coverUrl,
+        photoCount: photoCount,
+      );
 }
 
-/// Body of POST /memories.
-@freezed
-abstract class CreateMemoryRequestDto with _$CreateMemoryRequestDto {
-  const factory CreateMemoryRequestDto({
-    required String title,
-    required String memoryDate,
-    String? memoryTime,
-    String? placeName,
-    String? description,
-  }) = _CreateMemoryRequestDto;
-
-  factory CreateMemoryRequestDto.fromJson(Map<String, dynamic> json) =>
-      _$CreateMemoryRequestDtoFromJson(json);
-
-  factory CreateMemoryRequestDto.fromDraft(MemoryDraft draft) {
-    return CreateMemoryRequestDto(
-      title: draft.title,
-      memoryDate: AppDateFormat.iso(draft.memoryDate),
-      memoryTime: draft.memoryTime,
-      placeName: draft.placeName,
-      description: draft.description,
-    );
+/// Accepts a plain list or a list wrapped in `items` / `memories` / `results`
+/// (for paginated responses).
+List<MemoryDto> parseMemoryList(Object? data) {
+  Object? source = data;
+  if (data is Map) {
+    for (final key in const ['items', 'memories', 'results']) {
+      if (data[key] is List) {
+        source = data[key];
+        break;
+      }
+    }
   }
+  return [
+    for (final item in asJsonList(source, 'memories'))
+      MemoryDto.fromJson(asJsonMap(item, 'MemoryDto')),
+  ];
 }
